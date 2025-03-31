@@ -1,8 +1,10 @@
 openai
 langchain
 langchain-community
+langchain-openai
 faiss-cpu
 fastapi
 uvicorn
 python-dotenv
-pdfplumber
+pypdf
+tiktoken
