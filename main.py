@@ -5,9 +5,9 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import uvicorn
 
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import FAISS
-from langchain.document_loaders import PyPDFLoader
+from langchain_community.embeddings import OpenAIEmbeddings
+from langchain_community.vectorstores import FAISS
+from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 # ---------- SETUP ----------
@@ -19,22 +19,22 @@ SRO_DIR = os.path.join(DATA_DIR, "sro_decisions")
 VSTORE_DIR = os.path.join(PROJECT_ROOT, "vectorstores")
 TEMPLATE_VS_PATH = os.path.join(VSTORE_DIR, "templates")
 SRO_VS_PATH = os.path.join(VSTORE_DIR, "sro_decisions")
-ENV_FILE = os.path.join(PROJECT_ROOT, ".env")
 
 os.makedirs(TEMPLATES_DIR, exist_ok=True)
 os.makedirs(SRO_DIR, exist_ok=True)
 os.makedirs(VSTORE_DIR, exist_ok=True)
 
-# ---------- CREATE .ENV IF MISSING ----------
+# ---------- LOAD API KEY ----------
 
-if not os.path.exists(ENV_FILE):
-    openai_key = input("Enter your OpenAI API key: ").strip()
-    with open(ENV_FILE, "w") as f:
-        f.write(f"OPENAI_API_KEY={openai_key}\n")
-    print(".env file created.")
-
+# Load from .env file if it exists (for local development)
 load_dotenv()
+
+# Get API key from environment variable (works with Railway)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+if not OPENAI_API_KEY:
+    raise ValueError("OPENAI_API_KEY environment variable not set")
+
 embedding = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
 splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 
@@ -55,14 +55,26 @@ def build_vectorstore_from_pdfs(input_dir, output_path):
             all_chunks.extend(chunks)
             print(f"  - {file} → {len(chunks)} chunks")
     if not all_chunks:
-        raise ValueError(f"No PDF files found in {input_dir}.")
+        print(f"No PDF files found in {input_dir}. Creating empty vectorstore.")
+        # Create a minimal document to avoid errors
+        from langchain.schema import Document
+        dummy_doc = Document(page_content="Placeholder document", metadata={})
+        all_chunks = [dummy_doc]
     vs = FAISS.from_documents(all_chunks, embedding)
     vs.save_local(output_path)
     print(f"[✓] Vectorstore saved: {output_path}")
     return vs
 
-template_db = build_vectorstore_from_pdfs(TEMPLATES_DIR, TEMPLATE_VS_PATH)
-sro_db = build_vectorstore_from_pdfs(SRO_DIR, SRO_VS_PATH)
+try:
+    template_db = build_vectorstore_from_pdfs(TEMPLATES_DIR, TEMPLATE_VS_PATH)
+    sro_db = build_vectorstore_from_pdfs(SRO_DIR, SRO_VS_PATH)
+except Exception as e:
+    print(f"Error building vectorstores: {e}")
+    # Create fallback databases
+    from langchain.schema import Document
+    dummy_doc = Document(page_content="Placeholder document", metadata={})
+    template_db = FAISS.from_documents([dummy_doc], embedding)
+    sro_db = FAISS.from_documents([dummy_doc], embedding)
 
 # ---------- FASTAPI SERVER ----------
 
@@ -84,6 +96,5 @@ def search_sro(query: SearchQuery):
 # ---------- LAUNCH SERVER ----------
 
 if __name__ == "__main__":
-    print("\n[✓] System ready. Drop PDFs into /data/templates/ or /data/sro_decisions/")
-    print("[✓] Then call the API at http://127.0.0.1:8000")
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    print("\n[✓] System ready. API running at http://0.0.0.0:8000")
+    uvicorn.run("main:app", host="0.0.0.0", port=8000)
