@@ -1,0 +1,2 @@
+vectorstores/sro_decisions/index.pkl filter=lfs diff=lfs merge=lfs -text
+vectorstores/sro_decisions/index.faiss filter=lfs diff=lfs merge=lfs -text
