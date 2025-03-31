@@ -1,12 +1,14 @@
-services:
+sservices:
   - type: web
     name: writedecision
-    runtime: python
-    buildCommand: pip install -r requirements.txt && chmod +x start.sh
-    startCommand: ./start.sh
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port 10000
     envVars:
       - key: PYTHON_VERSION
         value: 3.10.0
       - key: OPENAI_API_KEY
         sync: false
-    port: 8000  # Critical for Render
+      - key: PORT
+        value: 10000
