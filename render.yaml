@@ -9,5 +9,4 @@ services:
         value: 3.10.0
       - key: OPENAI_API_KEY
         sync: false
-    # Add this port section
-    port: 8000
+    port: 8000  # Critical for Render
